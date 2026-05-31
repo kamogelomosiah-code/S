@@ -9,11 +9,15 @@ import { io, Socket } from 'socket.io-client';
 import { Camera, Mic, MicOff, LogOut, Radio, Sun, Moon, Send } from 'lucide-react';
 import { Message } from './types';
 
-const socket: Socket = io({
-  transports: ['websocket']
-});
-
 export default function App() {
+  const [serverUrl, setServerUrl] = useState<string>(() => {
+    const stored = localStorage.getItem('relay_server_url');
+    if (stored) return stored;
+    return window.location.origin;
+  });
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [input, setInput] = useState('');
@@ -32,31 +36,72 @@ export default function App() {
     setMessages([]);
   }, [selectedRecipient]);
 
+  // Dynamically manage connection when serverUrl changes
   useEffect(() => {
-    socket.on('chat_message', (msg: Message) => {
-      setMessages((prev) => [...prev, msg]);
+    const endpoint = serverUrl || window.location.origin;
+    
+    setConnectionStatus('connecting');
+    const customSocket = io(endpoint, {
+      transports: ['websocket'],
+      autoConnect: true,
+      reconnection: true,
     });
-    socket.on('user_list', (users: string[]) => {
-      setOnlineUsers(users);
+
+    customSocket.on('connect', () => {
+      setConnectionStatus('connected');
     });
-    socket.on('join_error', (err) => { alert(err); });
+
+    customSocket.on('disconnect', () => {
+      setConnectionStatus('disconnected');
+    });
+
+    customSocket.on('connect_error', () => {
+      setConnectionStatus('disconnected');
+    });
+
+    setSocket(customSocket);
 
     return () => {
-      socket.off('chat_message');
-      socket.off('user_list');
-      socket.off('join_error');
+      customSocket.disconnect();
     };
-  }, []);
+  }, [serverUrl]);
+
+  // Handle packet subscriptions on active socket changes
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleChatMessage = (msg: Message) => {
+      setMessages((prev) => [...prev, msg]);
+    };
+    const handleUserList = (users: string[]) => {
+      setOnlineUsers(users);
+    };
+    const handleJoinError = (err: string) => {
+      alert(err);
+    };
+
+    socket.on('chat_message', handleChatMessage);
+    socket.on('user_list', handleUserList);
+    socket.on('join_error', handleJoinError);
+
+    return () => {
+      socket.off('chat_message', handleChatMessage);
+      socket.off('user_list', handleUserList);
+      socket.off('join_error', handleJoinError);
+    };
+  }, [socket]);
 
   const handleJoin = () => {
-    if (!userName.trim()) return;
+    if (!userName.trim() || !socket) return;
     socket.once('join_success', () => setJoined(true));
     socket.once('join_error', (err) => { alert(err); });
     socket.emit('join', userName);
   };
 
   const handleLogout = () => {
-    socket.disconnect();
+    if (socket) {
+      socket.disconnect();
+    }
     window.location.reload();
   };
 
@@ -65,7 +110,7 @@ export default function App() {
   }, [messages]);
 
   const sendMessage = (image?: string, audio?: string) => {
-    if ((!input.trim() && !image && !audio) || !userName) return;
+    if ((!input.trim() && !image && !audio) || !userName || !socket) return;
     const msg: Message = {
       id: Date.now().toString(),
       text: input,
@@ -146,14 +191,46 @@ export default function App() {
             onChange={(e) => setUserName(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleJoin()}
             placeholder="Enter your name..."
-            className="px-5 py-3.5 bg-zinc-900 text-zinc-100 rounded-2xl border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-accent w-full mb-6 font-sans text-sm text-center placeholder-zinc-600"
+            className="px-5 py-3.5 bg-zinc-900 text-zinc-100 rounded-2xl border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-accent w-full mb-4 font-sans text-sm text-center placeholder-zinc-600"
           />
           <button
             onClick={handleJoin}
-            className="px-8 py-3 bg-accent text-white rounded-full font-semibold hover:bg-accent-hover transition-all text-xs tracking-wider font-sans uppercase shadow-md active:scale-95 w-full"
+            className="px-8 py-3 bg-accent text-white rounded-full font-semibold hover:bg-accent-hover transition-all text-xs tracking-wider font-sans uppercase shadow-md active:scale-95 w-full mb-4"
           >
             Start Chat
           </button>
+
+          {/* Collapsible Relay URL config for GitHub Pages deployment */}
+          <div className="w-full text-left">
+            <details className="group border border-zinc-900 rounded-2xl bg-zinc-950/20 px-3 py-2 text-zinc-500 select-none transition-all duration-300">
+              <summary className="list-none flex items-center justify-between text-[11px] font-sans font-semibold tracking-wider cursor-pointer uppercase py-1 group-open:pb-2.5">
+                <span>Relay Configuration</span>
+                <span className="transition-transform group-open:rotate-180 text-[9px]">▼</span>
+              </summary>
+              <div className="space-y-2 pt-2 border-t border-zinc-900/60">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] text-zinc-600 font-sans font-semibold tracking-wider uppercase">Relay Server URL</label>
+                  <input
+                    type="text"
+                    value={serverUrl}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setServerUrl(val);
+                      localStorage.setItem('relay_server_url', val);
+                    }}
+                    placeholder="e.g. http://localhost:3000"
+                    className="px-3 py-2 bg-zinc-900/40 text-zinc-300 rounded-xl border border-zinc-900 focus:outline-none focus:ring-1 focus:ring-accent text-xs placeholder-zinc-700 font-mono"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-zinc-600">Status:</span>
+                  <span className={`font-semibold uppercase tracking-widest text-[9px] ${connectionStatus === 'connected' ? 'text-emerald-500' : 'text-zinc-500 animate-pulse'}`}>
+                    ● {connectionStatus}
+                  </span>
+                </div>
+              </div>
+            </details>
+          </div>
         </div>
       </motion.div>
     );
@@ -260,11 +337,26 @@ export default function App() {
             ))}
           </div>
 
-          <div className="pt-3 border-t border-zinc-200 dark:border-zinc-900 flex items-center justify-between text-[11px] text-zinc-500 font-medium uppercase font-sans">
-             <span>Live Presence</span>
-             <div className="flex items-center gap-1">
-               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-               <span className="text-zinc-400 font-semibold">{onlineUsers.length} online</span>
+          <div className="pt-3 border-t border-zinc-200 dark:border-zinc-900 space-y-2 font-sans">
+             <div className="flex items-center justify-between text-[11px] text-zinc-500 font-medium uppercase">
+                <span>Live Presence</span>
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-zinc-400 font-semibold">{onlineUsers.length} online</span>
+                </div>
+             </div>
+             
+             {/* Dynamic Relay Server connection display */}
+             <div className="pt-2 border-t border-zinc-200/60 dark:border-zinc-900 w-full space-y-1">
+               <div className="flex items-center justify-between text-[11px] text-zinc-500 font-medium uppercase">
+                 <span>Relay Server</span>
+                 <span className={`font-bold text-[10px] uppercase tracking-wider ${connectionStatus === 'connected' ? 'text-emerald-500' : 'text-accent animate-pulse'}`}>
+                   {connectionStatus}
+                 </span>
+               </div>
+               <p className="text-[10px] text-zinc-400 font-mono truncate bg-zinc-100 dark:bg-zinc-900 px-2 py-1.5 rounded-lg border border-zinc-200/40 dark:border-zinc-800" title={serverUrl}>
+                 {serverUrl}
+               </p>
              </div>
           </div>
         </aside>
