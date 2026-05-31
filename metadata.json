@@ -1,6 +1,6 @@
 {
   "name": "Ephemeral Relay",
   "description": "Real-time, zero-persistence messaging relay.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -17,12 +17,32 @@ async function startServer() {
 
   io.on("connection", (socket) => {
     socket.on("join", (username) => {
+      if (Array.from(users.values()).includes(username)) {
+        socket.emit("join_error", "Username is already taken");
+        return;
+      }
       users.set(socket.id, username);
+      socket.emit("join_success");
       io.emit("user_list", Array.from(users.values()));
     });
 
     socket.on("chat_message", (msg) => {
-      io.emit("chat_message", msg);
+      if (msg.recipient && msg.recipient !== "All") {
+        // Find recipient socket ID
+        let recipientSocketId = "";
+        for (const [id, username] of users.entries()) {
+          if (username === msg.recipient) {
+            recipientSocketId = id;
+            break;
+          }
+        }
+        if (recipientSocketId) {
+          io.to(recipientSocketId).emit("chat_message", msg);
+          socket.emit("chat_message", msg); // Also emit to sender
+        }
+      } else {
+        io.emit("chat_message", msg);
+      }
     });
 
     socket.on("typing", (data) => {

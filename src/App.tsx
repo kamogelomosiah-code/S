@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { Camera } from 'lucide-react';
+import { Camera, Mic, MicOff, LogOut, Radio, Sun, Moon } from 'lucide-react';
 import { Message } from './types';
 
 const socket: Socket = io();
@@ -17,6 +17,11 @@ export default function App() {
   const [input, setInput] = useState('');
   const [userName, setUserName] = useState('');
   const [joined, setJoined] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [selectedRecipient, setSelectedRecipient] = useState<string>("All");
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -27,34 +32,68 @@ export default function App() {
     socket.on('user_list', (users: string[]) => {
       setOnlineUsers(users);
     });
+    socket.on('join_error', (err) => { alert(err); });
 
     return () => {
       socket.off('chat_message');
       socket.off('user_list');
+      socket.off('join_error');
     };
   }, []);
 
   const handleJoin = () => {
     if (!userName.trim()) return;
+    socket.once('join_success', () => setJoined(true));
+    socket.once('join_error', (err) => { alert(err); });
     socket.emit('join', userName);
-    setJoined(true);
+  };
+
+  const handleLogout = () => {
+    socket.disconnect();
+    window.location.reload();
   };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = (image?: string) => {
-    if ((!input.trim() && !image) || !userName) return;
+  const sendMessage = (image?: string, audio?: string) => {
+    if ((!input.trim() && !image && !audio) || !userName) return;
     const msg: Message = {
       id: Date.now().toString(),
       text: input,
       image,
+      audio,
       sender: userName,
+      recipient: selectedRecipient,
       timestamp: Date.now(),
     };
     socket.emit('chat_message', msg);
     setInput('');
+  };
+
+  const startRecording = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mediaRecorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = mediaRecorder;
+    audioChunksRef.current = [];
+    mediaRecorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
+    mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            sendMessage(undefined, reader.result as string);
+        };
+        reader.readAsDataURL(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+    };
+    mediaRecorder.start();
+    setIsRecording(true);
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,10 +107,22 @@ export default function App() {
     }
   };
 
+  const getInitials = (name: string) => name.substring(0, 2).toUpperCase();
+  
   if (!joined) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-black text-white p-4 font-sans">
-        <h1 className="text-4xl font-semibold mb-12 tracking-tight">Ephemeral Relay</h1>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex flex-col items-center justify-center h-screen bg-black text-white p-4 font-sans bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-black to-black"
+      >
+        <motion.h1 
+          initial={{ y: -20 }}
+          animate={{ y: 0 }}
+          className="text-4xl font-semibold mb-12 tracking-tight"
+        >
+          Ephemeral Relay
+        </motion.h1>
         <input
           type="text"
           value={userName}
@@ -85,26 +136,51 @@ export default function App() {
         >
           Start Chat
         </button>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 font-sans">
-      <header className="flex items-center justify-between p-6 bg-zinc-950">
-        <h1 className="text-xl font-semibold tracking-tight">Chatting as {userName}</h1>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-xs text-zinc-400 font-mono tracking-wider uppercase">Live • {onlineUsers.length} Online</span>
+    <div className={`flex flex-col h-screen ${theme === 'dark' ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'} font-sans`}>
+      <header className={`flex items-center justify-between p-6 ${theme === 'dark' ? 'bg-zinc-950' : 'bg-white border-b border-zinc-200'}`}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center font-semibold text-zinc-300">
+            {getInitials(userName)}
+          </div>
+          <h1 className="text-lg font-semibold tracking-tight">{userName}</h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-medium tracking-wide uppercase">
+             <Radio size={14} className="text-emerald-500 mb-0.5" />
+             <span>Live • {onlineUsers.length}</span>
+          </div>
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-zinc-500 hover:text-blue-500 p-1">
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <button onClick={handleLogout} className="text-zinc-500 hover:text-red-400 p-1">
+            <LogOut size={18} />
+          </button>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className="hidden md:flex w-64 flex-col border-r border-zinc-900 p-6 space-y-4">
+        <aside className={`hidden md:flex w-64 flex-col ${theme === 'dark' ? 'border-r border-zinc-900' : 'border-r border-zinc-200'} p-6 space-y-4`}>
           <h2 className="text-xs font-semibold text-zinc-600 uppercase tracking-wider">Online Users</h2>
-          {onlineUsers.map((user) => (
-            <div key={user} className="text-sm text-zinc-400 font-medium flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-700"></span>
+          <div 
+            onClick={() => setSelectedRecipient("All")}
+            className={`cursor-pointer text-sm font-medium flex items-center gap-3 ${selectedRecipient === "All" ? 'text-blue-500' : theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}
+          >
+            All Users
+          </div>
+          {onlineUsers.filter(u => u !== userName).map((user) => (
+            <div 
+              key={user} 
+              onClick={() => setSelectedRecipient(user)}
+              className={`cursor-pointer text-sm font-medium flex items-center gap-3 ${selectedRecipient === user ? 'text-blue-500' : theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}
+            >
+              <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-semibold text-zinc-300">
+                {getInitials(user)}
+              </div>
               {user}
             </div>
           ))}
@@ -117,18 +193,31 @@ export default function App() {
                 key={msg.id}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className={`flex ${msg.sender === userName ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${msg.sender === userName ? 'justify-start' : 'justify-end'}`}
               >
                 <div
-                  className={`max-w-[70%] p-4 rounded-3xl ${
+                  className={`flex gap-3 max-w-[70%]  ${
                     msg.sender === userName
-                      ? 'bg-blue-600 text-white rounded-br-none'
-                      : 'bg-zinc-900 text-zinc-100 rounded-bl-none'
+                      ? 'flex-row-reverse'
+                      : 'flex-row'
                   }`}
                 >
-                  <p className="text-[10px] font-semibold mb-1 opacity-60 uppercase tracking-tighter">{msg.sender}</p>
-                  {msg.image && <img src={msg.image} className="rounded-lg mb-2 max-w-full" alt="chat" />}
-                  <p className="font-sans text-sm">{msg.text}</p>
+                  <div className="w-8 h-8 rounded-full bg-zinc-800 flex-shrink-0 flex items-center justify-center text-xs font-semibold text-zinc-400">
+                    {getInitials(msg.sender)}
+                  </div>
+                  <div
+                    className={`p-4 rounded-3xl ${
+                      msg.sender === userName
+                        ? 'bg-blue-600 text-white rounded-bl-none shadow-md'
+                        : theme === 'dark'
+                          ? 'bg-zinc-800 text-zinc-100 rounded-br-none'
+                          : 'bg-white text-zinc-900 rounded-br-none border border-zinc-200 shadow-sm'
+                    }`}
+                  >
+                    {msg.image && <img src={msg.image} className="rounded-lg mb-2 max-w-full" alt="chat" />}
+                    {msg.audio && <audio src={msg.audio} controls className="my-2" />}
+                    <p className="font-sans text-sm">{msg.text}</p>
+                  </div>
                 </div>
               </motion.div>
             ))}
@@ -137,7 +226,7 @@ export default function App() {
         </div>
       </div>
 
-      <footer className="p-6 bg-zinc-950">
+      <footer className={`p-6 ${theme === 'dark' ? 'bg-zinc-950' : 'bg-white border-t border-zinc-200'}`}>
         <div className="flex gap-2 max-w-4xl mx-auto">
           <input
             type="file"
@@ -152,13 +241,19 @@ export default function App() {
           >
             <Camera size={20} />
           </button>
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            className={`p-3 transition ${isRecording ? 'text-red-500 animate-pulse' : 'text-zinc-500 hover:text-blue-400'}`}
+          >
+            {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+          </button>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
             placeholder="Type a message..."
-            className="flex-1 px-5 py-3 bg-zinc-900 rounded-full border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+            className={`flex-1 px-5 py-3 ${theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-100 border-zinc-200'} rounded-full border focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm`}
           />
           <button
             onClick={() => sendMessage()}
