@@ -9,6 +9,146 @@ import { io, Socket } from 'socket.io-client';
 import { Camera, Mic, MicOff, LogOut, Radio, Sun, Moon, Send, Users, X } from 'lucide-react';
 import { Message } from './types';
 
+function hashCode(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash);
+}
+
+interface UserAvatarProps {
+  name: string;
+  className?: string;
+  theme?: 'light' | 'dark';
+}
+
+function UserAvatar({ name, className = "w-8 h-8", theme = "dark" }: UserAvatarProps) {
+  const hash = hashCode(name || "User");
+  const initials = (name || "U").substring(0, 2).toUpperCase();
+
+  // Background style based on theme & hash
+  const bgClasses = theme === 'dark'
+    ? 'bg-zinc-900 text-zinc-100 border border-zinc-900'
+    : 'bg-zinc-100 text-zinc-900 border border-zinc-200';
+
+  // Beautiful geometric variations matching our premium minimalist aesthetic
+  const patternType = hash % 6; 
+  const shapeType = (hash >> 2) % 6; 
+  const accentType = (hash >> 4) % 6; 
+
+  const strokeColor = theme === 'dark' ? 'stroke-zinc-800' : 'stroke-zinc-200';
+  const fillColor = theme === 'dark' ? 'fill-zinc-900' : 'fill-zinc-100';
+
+  return (
+    <div className={`relative rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center ${className} ${bgClasses}`}>
+      <svg
+        viewBox="0 0 100 100"
+        className="absolute inset-0 w-full h-full select-none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {/* Background Patterns */}
+        {patternType === 0 && (
+          <g opacity="0.12">
+            <line x1="0" y1="20" x2="100" y2="20" className={strokeColor} strokeWidth="2" />
+            <line x1="0" y1="40" x2="100" y2="40" className={strokeColor} strokeWidth="2" />
+            <line x1="0" y1="60" x2="100" y2="60" className={strokeColor} strokeWidth="2" />
+            <line x1="0" y1="80" x2="100" y2="80" className={strokeColor} strokeWidth="2" />
+          </g>
+        )}
+        {patternType === 1 && (
+          <g opacity="0.12">
+            <line x1="20" y1="0" x2="20" y2="100" className={strokeColor} strokeWidth="2" />
+            <line x1="40" y1="0" x2="40" y2="100" className={strokeColor} strokeWidth="2" />
+            <line x1="60" y1="0" x2="60" y2="100" className={strokeColor} strokeWidth="2" />
+            <line x1="80" y1="0" x2="80" y2="100" className={strokeColor} strokeWidth="2" />
+          </g>
+        )}
+        {patternType === 2 && (
+          <g opacity="0.1" fill="none" className={strokeColor}>
+            <circle cx="50" cy="50" r="15" strokeWidth="2" />
+            <circle cx="50" cy="50" r="30" strokeWidth="2" />
+            <circle cx="50" cy="50" r="45" strokeWidth="2" />
+          </g>
+        )}
+        {patternType === 3 && (
+          <g opacity="0.12" className={strokeColor} strokeWidth="2">
+            <line x1="0" y1="0" x2="100" y2="100" />
+            <line x1="100" y1="0" x2="0" y2="100" />
+          </g>
+        )}
+        {patternType === 4 && (
+          <g opacity="0.12" className={fillColor}>
+            <rect x="10" y="10" width="15" height="15" />
+            <rect x="75" y="10" width="15" height="15" />
+            <rect x="10" y="75" width="15" height="15" />
+            <rect x="75" y="75" width="15" height="15" />
+          </g>
+        )}
+        {patternType === 5 && (
+          <g opacity="0.12" fill="none" className={strokeColor} strokeWidth="2" strokeDasharray="3 3">
+            <path d="M10,50 Q50,0 90,50 T10,50" />
+          </g>
+        )}
+
+        {/* Foreground Structures */}
+        {shapeType === 0 && (
+          <rect x="25" y="25" width="50" height="50" className={`${theme === 'dark' ? 'fill-zinc-900/40' : 'fill-zinc-100/40'} ${strokeColor}`} strokeWidth="2" rx="8" transform="rotate(45 50 50)" opacity="0.3" />
+        )}
+        {shapeType === 1 && (
+          <circle cx="50" cy="50" r="28" className={`${theme === 'dark' ? 'fill-zinc-900/30' : 'fill-zinc-100/30'} ${strokeColor}`} strokeWidth="2" opacity="0.4" />
+        )}
+        {shapeType === 2 && (
+          <path d="M50,15 L85,75 L15,75 Z" className={`${theme === 'dark' ? 'fill-zinc-900/30' : 'fill-zinc-100/30'} ${strokeColor}`} strokeWidth="2" rx="4" opacity="0.3" transform="rotate(15 50 50)" />
+        )}
+        {shapeType === 3 && (
+          <g opacity="0.25" className={strokeColor} strokeWidth="2.5">
+            <path d="M20,50 L80,50" />
+            <path d="M50,20 L50,80" />
+          </g>
+        )}
+        {shapeType === 4 && (
+          <g opacity="0.3" className={fillColor}>
+            <circle cx="25" cy="50" r="6" />
+            <circle cx="50" cy="50" r="10" />
+            <circle cx="75" cy="50" r="6" />
+          </g>
+        )}
+        {shapeType === 5 && (
+          <path d="M30,30 Q50,0 70,30 T70,70" fill="none" className={strokeColor} strokeWidth="3" opacity="0.25" />
+        )}
+
+        {/* Dynamic Micro-Accent highlights based on theme color */}
+        {accentType === 0 && (
+          <circle cx="80" cy="20" r="8" className="fill-accent" opacity="0.45" />
+        )}
+        {accentType === 1 && (
+          <path d="M0,0 L40,0 L0,40 Z" className="fill-accent" opacity="0.3" />
+        )}
+        {accentType === 2 && (
+          <rect x="42" y="10" width="16" height="16" className="fill-accent" rx="4" transform="rotate(45 50 18)" opacity="0.4" />
+        )}
+        {accentType === 3 && (
+          <g opacity="0.45" className="stroke-accent" strokeWidth="2.5">
+            <circle cx="50" cy="50" r="38" fill="none" strokeDasharray="6 30" />
+          </g>
+        )}
+        {accentType === 4 && (
+          <polygon points="50,5 95,25 95,75 50,95 5,75 5,25" fill="none" className="stroke-accent" strokeWidth="1.5" opacity="0.3" />
+        )}
+        {accentType === 5 && (
+          <path d="M15,85 C35,65 65,65 85,85" fill="none" className="stroke-accent" strokeWidth="5" strokeLinecap="round" opacity="0.3" />
+        )}
+      </svg>
+
+      {/* Clean elegant high-contrast display typography initials */}
+      <span className="relative z-10 font-bold tracking-tight select-none uppercase font-sans">
+        {initials}
+      </span>
+    </div>
+  );
+}
+
 export default function App() {
   const [serverUrl, setServerUrl] = useState<string>(() => {
     const stored = localStorage.getItem('relay_server_url');
@@ -183,7 +323,16 @@ export default function App() {
           >
             EPHEMERAL RELAY
           </motion.h1>
-          <p className="text-zinc-500 text-xs tracking-widest font-display mb-10 uppercase">Minimalist Real-Time Chat</p>
+          <p className="text-zinc-500 text-xs tracking-widest font-display mb-8 uppercase">Minimalist Real-Time Chat</p>
+          
+          {/* Real-time Dynamic Avatar profile preview */}
+          <div className="mb-8 flex justify-center">
+            <UserAvatar 
+              name={userName.trim() || "?"} 
+              className="w-20 h-20 text-base font-extrabold shadow-md border-0"
+              theme="dark"
+            />
+          </div>
           
           <input
             type="text"
@@ -254,9 +403,11 @@ export default function App() {
           </button>
           
           <div className="flex items-center gap-2 sm:gap-2.5">
-            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full ${getUserColor(userName)} flex items-center justify-center font-bold text-xs`}>
-              {getInitials(userName)}
-            </div>
+            <UserAvatar 
+              name={userName} 
+              className="w-8 h-8 sm:w-9 sm:h-9 text-[10px] sm:text-xs font-bold" 
+              theme={theme}
+            />
             <div className="min-w-0">
               <h1 className="text-xs sm:text-sm font-bold tracking-tight font-display truncate max-w-[100px] xs:max-w-[130px] sm:max-w-none">{userName}</h1>
               <p className="text-[9px] sm:text-[10px] text-zinc-500 font-sans tracking-wide uppercase truncate max-w-[120px] xs:max-w-[150px] sm:max-w-none">
@@ -342,9 +493,11 @@ export default function App() {
                   onClick={() => { setSelectedRecipient(user); setIsAsideOpen(false); }}
                   className={`cursor-pointer text-sm font-medium flex items-center gap-3 p-2 rounded-full transition-colors font-sans ${selectedRecipient === user ? 'text-white bg-accent font-semibold' : theme === 'dark' ? 'text-zinc-400 hover:bg-zinc-900 hover:text-white' : 'text-zinc-700 hover:bg-zinc-100 hover:text-black'}`}
                 >
-                  <div className={`w-8 h-8 rounded-full ${getUserColor(user)} flex items-center justify-center text-xs font-semibold`}>
-                    {getInitials(user)}
-                  </div>
+                  <UserAvatar 
+                    name={user} 
+                    className="w-8 h-8 text-[11px] font-bold" 
+                    theme={theme}
+                  />
                   <span className="truncate">{user}</span>
                 </div>
               ))
@@ -401,9 +554,11 @@ export default function App() {
                           : 'flex-row'
                       }`}
                     >
-                      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full ${getUserColor(msg.sender)} flex-shrink-0 flex items-center justify-center text-[10px] sm:text-xs font-semibold`}>
-                        {getInitials(msg.sender)}
-                      </div>
+                      <UserAvatar 
+                        name={msg.sender} 
+                        className="w-7 h-7 sm:w-8 sm:h-8 text-[10px] sm:text-xs font-bold" 
+                        theme={theme}
+                      />
                       <div className="flex flex-col space-y-1 min-w-0">
                         <span className={`text-[10px] text-zinc-500 font-sans tracking-wide ${msg.sender === userName ? 'text-right' : 'text-left'} truncate max-w-[150px] sm:max-w-none`}>
                           {msg.sender === userName ? 'You' : msg.sender} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
