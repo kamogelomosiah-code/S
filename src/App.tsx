@@ -211,7 +211,14 @@ export default function App() {
     return localStorage.getItem('pref_sound') !== 'false';
   });
   const [desktopNotificationEnabled, setDesktopNotificationEnabled] = useState<boolean>(() => {
-    return localStorage.getItem('pref_desktop_notification') === 'true';
+    const saved = localStorage.getItem('pref_desktop_notification');
+    if (saved !== null) {
+      return saved === 'true';
+    }
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission === 'granted';
+    }
+    return false;
   });
   const [notificationPermissionStatus, setNotificationPermissionStatus] = useState<NotificationPermission>(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -309,12 +316,10 @@ export default function App() {
           playNotificationSound();
         }
 
-        // 2. Trigger native desktop push notification if tab is hidden OR user is looking at another screen
-        const isTabHidden = typeof document !== 'undefined' && document.hidden;
+        // 2. Trigger native desktop push notification whenever a message is received
         if (
           desktopNotificationEnabledRef.current && 
           notificationPermissionStatusRef.current === 'granted' && 
-          (isTabHidden || !isCurrentlyInConversation) &&
           ('Notification' in window)
         ) {
           try {
@@ -442,7 +447,25 @@ export default function App() {
 
   const handleJoin = () => {
     if (!userName.trim() || !socket) return;
-    socket.once('join_success', () => setJoined(true));
+    socket.once('join_success', () => {
+      setJoined(true);
+      // Auto-request notification permission on Chrome / modern browsers upon successful stream join
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then((res) => {
+          setNotificationPermissionStatus(res);
+          if (res === 'granted') {
+            setDesktopNotificationEnabled(true);
+            localStorage.setItem('pref_desktop_notification', 'true');
+            try {
+              new Notification("Frequencies Calibrated 📶", {
+                body: "Ephemeral Relay notifications are now fully active on this device.",
+                icon: "/favicon.ico"
+              });
+            } catch (e) {}
+          }
+        });
+      }
+    });
     socket.once('join_error', (err) => { alert(err); });
     socket.emit('join', userName);
   };
@@ -1618,107 +1641,137 @@ export default function App() {
       )}
 
       {/* Modern Bottom Navigation Bar */}
-      <nav className={`border-t py-2 px-3 sm:px-6 relative z-30 transition-all w-full flex-shrink-0 ${
-        theme === 'dark' 
-          ? 'bg-zinc-950/95 border-zinc-900 text-zinc-350' 
-          : 'bg-white/95 border-zinc-200 text-zinc-650'
-      }`}>
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-1 sm:gap-2 w-full">
-          {/* 1. Peers Selector */}
-          <button
-            onClick={() => setIsAsideOpen(!isAsideOpen)}
-            className={`flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer ${
-              isAsideOpen ? 'text-accent font-bold' : ''
-            }`}
-            title="Toggle peers sidebar list"
-          >
-            <Users size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Peers</span>
-          </button>
+      <div className="px-3 pb-4 pt-1.5 w-full max-w-4xl mx-auto flex-shrink-0 z-30">
+        <nav className={`py-2 px-3 rounded-2xl border transition-all w-full flex items-center shadow-lg ${
+          theme === 'dark' 
+            ? 'bg-zinc-900/90 border-zinc-800/80 text-zinc-300 backdrop-blur-md shadow-black/35' 
+            : 'bg-white/95 border-zinc-200 text-zinc-700 backdrop-blur-md shadow-zinc-150/45'
+        }`}>
+          <div className="flex items-center justify-around w-full gap-1">
+            {/* 1. Peers Selector */}
+            <button
+              onClick={() => setIsAsideOpen(!isAsideOpen)}
+              className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer relative ${
+                isAsideOpen 
+                  ? 'bg-accent text-white shadow-sm scale-105' 
+                  : theme === 'dark'
+                    ? 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
+                    : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+              }`}
+              title="Toggle peers list"
+            >
+              <Users size={20} />
+              {onlineUsers.length > 1 && !isAsideOpen && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              )}
+            </button>
 
-          {/* 2. Public Room Shortcut */}
-          <button
-            onClick={() => {
-              setSelectedRecipient("All");
-              setIsAsideOpen(false);
-            }}
-            className={`flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer ${
-              selectedRecipient === "All" ? 'text-accent font-bold' : ''
-            }`}
-            title="Switch frequency to Public"
-          >
-            <Radio size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Public</span>
-          </button>
+            {/* 2. Public Room Shortcut */}
+            <button
+              onClick={() => {
+                setSelectedRecipient("All");
+                setIsAsideOpen(false);
+              }}
+              className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer ${
+                selectedRecipient === "All" && !isAsideOpen
+                  ? 'bg-accent text-white shadow-sm scale-105'
+                  : theme === 'dark'
+                    ? 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
+                    : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+              }`}
+              title="Public stream room"
+            >
+              <Radio size={20} />
+            </button>
 
-          {/* 3. Send Invite Modal trigger */}
-          <button
-            onClick={() => {
-              setShowInviteModal(true);
-            }}
-            className="flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer"
-            title="Invite peers by mail invite"
-          >
-            <Share2 size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Invite</span>
-          </button>
+            {/* 3. Send Invite Modal trigger */}
+            <button
+              onClick={() => {
+                setShowInviteModal(true);
+              }}
+              className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer ${
+                theme === 'dark'
+                  ? 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
+                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+              }`}
+              title="Invite peers to stream"
+            >
+              <Share2 size={20} />
+            </button>
 
-          {/* 4. Switch Sound Prefs */}
-          <button
-            onClick={() => {
-              const newVal = !soundEnabled;
-              setSoundEnabled(newVal);
-              localStorage.setItem('pref_sound', String(newVal));
-              if (newVal) playNotificationSound();
-            }}
-            className={`flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer ${
-              soundEnabled ? 'text-accent font-bold' : ''
-            }`}
-            title="Toggle system sound chimes"
-          >
-            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Sound</span>
-          </button>
+            {/* 4. Switch Sound Prefs */}
+            <button
+              onClick={() => {
+                const newVal = !soundEnabled;
+                setSoundEnabled(newVal);
+                localStorage.setItem('pref_sound', String(newVal));
+                if (newVal) playNotificationSound();
+              }}
+              className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer ${
+                soundEnabled
+                  ? theme === 'dark'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                  : theme === 'dark'
+                    ? 'text-zinc-500 hover:text-zinc-350 hover:bg-zinc-800/80'
+                    : 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100'
+              }`}
+              title={soundEnabled ? "Mute sound chimes" : "Unmute sound chimes"}
+            >
+              {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+            </button>
 
-          {/* 5. Aesthetic Light/Dark switch */}
-          <button
-            onClick={() => {
-              setTheme(theme === 'dark' ? 'light' : 'dark');
-            }}
-            className="flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer"
-            title="Switch dark/light theme style"
-          >
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Theme</span>
-          </button>
+            {/* 5. Aesthetic Light/Dark switch */}
+            <button
+              onClick={() => {
+                setTheme(theme === 'dark' ? 'light' : 'dark');
+              }}
+              className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer ${
+                theme === 'dark'
+                  ? 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
+                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+              }`}
+              title={theme === 'dark' ? "Switch to daylight mode" : "Switch to midnight mode"}
+            >
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
 
-          {/* 6. Push Notification quick config */}
-          <button
-            onClick={handleDesktopNotificationToggle}
-            className={`flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer ${
-              desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? 'text-accent' : ''
-            }`}
-            title="Toggle system desktop push logs alerts"
-          >
-            {desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? (
-              <Bell size={16} />
-            ) : (
-              <BellOff size={16} />
-            )}
-            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Alerts</span>
-          </button>
+            {/* 6. Push Notification quick config */}
+            <button
+              onClick={handleDesktopNotificationToggle}
+              className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer ${
+                desktopNotificationEnabled && notificationPermissionStatus === 'granted'
+                  ? theme === 'dark'
+                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                    : 'bg-amber-50 text-amber-600 border border-amber-100'
+                  : theme === 'dark'
+                    ? 'text-zinc-500 hover:text-zinc-350 hover:bg-zinc-800/80'
+                    : 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100'
+              }`}
+              title={desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? "Mute push alerts" : "Enable push alerts"}
+            >
+              {desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? (
+                <Bell size={20} />
+              ) : (
+                <BellOff size={20} />
+              )}
+            </button>
 
-          {/* 7. Drop node / Log Out */}
-          <button
-            onClick={handleLogout}
-            className="flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-rose-500 active:scale-95 cursor-pointer text-zinc-500 hover:bg-rose-500/5"
-            title="Disconnect current channel session"
-          >
-            <LogOut size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Exit</span>
-          </button>
-        </div>
-      </nav>
+            {/* 7. Drop node / Log Out */}
+            <button
+              onClick={handleLogout}
+              className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer ${
+                theme === 'dark'
+                  ? 'text-rose-500 hover:text-rose-400 hover:bg-rose-500/10'
+                  : 'text-rose-600 hover:text-rose-700 hover:bg-rose-50/80'
+              }`}
+              title="Exit current session"
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
+        </nav>
+      </div>
 
       {/* Dynamic Invitation Modal overlay when chatting */}
       {showInviteModal && renderInviteModal()}
