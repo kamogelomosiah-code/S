@@ -24,6 +24,7 @@ async function startServer() {
       users.set(socket.id, username);
       socket.emit("join_success");
       io.emit("user_list", Array.from(users.values()));
+      io.emit("user_joined", username);
     });
 
     socket.on("chat_message", (msg) => {
@@ -50,8 +51,12 @@ async function startServer() {
     });
 
     socket.on("disconnect", () => {
+      const username = users.get(socket.id);
       users.delete(socket.id);
       io.emit("user_list", Array.from(users.values()));
+      if (username) {
+        io.emit("user_left", username);
+      }
     });
   });
 

@@ -202,7 +202,7 @@ export default function App() {
   const [userName, setUserName] = useState('');
   const [joined, setJoined] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [selectedRecipient, setSelectedRecipient] = useState<string>("All");
+  const [selectedRecipient, setSelectedRecipient] = useState<string>("");
   const [isAsideOpen, setIsAsideOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
@@ -363,15 +363,80 @@ export default function App() {
     const handleJoinError = (err: string) => {
       alert(err);
     };
+    const handleUserJoined = (username: string) => {
+      if (username !== userNameRef.current) {
+        if (soundEnabledRef.current) {
+          playNotificationSound();
+        }
+        const toastId = `join-${username}-${Date.now()}`;
+        setToasts((prev) => [
+          ...prev, 
+          {
+            id: toastId,
+            sender: "System",
+            text: `📶 ${username} has joined the stream`,
+            recipient: "All",
+            avatarName: username
+          }
+        ]);
+        setTimeout(() => {
+          setToasts((prev) => prev.filter(t => t.id !== toastId));
+        }, 5000);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `sys-join-${username}-${Date.now()}`,
+            text: `📶 ${username} has connected to the frequency`,
+            sender: 'System',
+            recipient: 'All',
+            timestamp: Date.now()
+          }
+        ]);
+      }
+    };
+    const handleUserLeft = (username: string) => {
+      if (username !== userNameRef.current) {
+        const toastId = `left-${username}-${Date.now()}`;
+        setToasts((prev) => [
+          ...prev, 
+          {
+            id: toastId,
+            sender: "System",
+            text: `🔌 ${username} left the stream`,
+            recipient: "All",
+            avatarName: username
+          }
+        ]);
+        setTimeout(() => {
+          setToasts((prev) => prev.filter(t => t.id !== toastId));
+        }, 5000);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `sys-left-${username}-${Date.now()}`,
+            text: `🔌 ${username} left the frequency`,
+            sender: 'System',
+            recipient: 'All',
+            timestamp: Date.now()
+          }
+        ]);
+      }
+    };
 
     socket.on('chat_message', handleChatMessage);
     socket.on('user_list', handleUserList);
     socket.on('join_error', handleJoinError);
+    socket.on('user_joined', handleUserJoined);
+    socket.on('user_left', handleUserLeft);
 
     return () => {
       socket.off('chat_message', handleChatMessage);
       socket.off('user_list', handleUserList);
       socket.off('join_error', handleJoinError);
+      socket.off('user_joined', handleUserJoined);
+      socket.off('user_left', handleUserLeft);
     };
   }, [socket]);
 
@@ -1297,140 +1362,363 @@ export default function App() {
         </aside>
         
         {/* Chat Feed */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4">
-          <div className="max-w-4xl mx-auto w-full space-y-3">
-            <AnimatePresence>
-              {displayedMessages.length === 0 ? (
-                <div className="h-[40vh] flex flex-col items-center justify-center text-center p-6 text-zinc-500">
-                  <span className="text-2xl mb-2 opacity-50">✉️</span>
-                  <p className="text-xs sm:text-sm font-sans font-medium text-zinc-400 dark:text-zinc-500">No messages yet with {selectedRecipient === 'All' ? 'everyone' : selectedRecipient}.</p>
-                  <p className="text-[11px] text-zinc-550 dark:text-zinc-650 mt-1 max-w-[240px] leading-relaxed">Start the conversation by sending a direct message.</p>
-                </div>
-              ) : (
-                displayedMessages.map((msg) => (
-                  <motion.div
-                    key={msg.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className={`flex ${msg.sender === userName ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`flex gap-1.5 sm:gap-2.5 max-w-[90%] sm:max-w-[70%] ${
-                        msg.sender === userName
-                          ? 'flex-row-reverse'
-                          : 'flex-row'
+        <div className={`flex-1 overflow-y-auto p-3 sm:p-6 ${!selectedRecipient ? 'flex items-center justify-center' : 'space-y-4'}`}>
+          <div className="max-w-4xl mx-auto w-full">
+            <AnimatePresence mode="wait">
+              {!selectedRecipient ? (
+                <motion.div
+                  key="relay-landing"
+                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                  transition={{ duration: 0.25 }}
+                  className="max-w-md w-full mx-auto text-center p-6 border rounded-3xl transition-all shadow-xl bg-white/40 dark:bg-zinc-950/40 backdrop-blur-md border-zinc-200/60 dark:border-zinc-900"
+                >
+                  <div className="relative inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-accent/10 border border-accent/20 text-accent text-2xl mb-4 select-none">
+                    📶
+                  </div>
+
+                  <h2 className="text-xl font-extrabold tracking-wider font-display uppercase mb-1">
+                    EPHEMERAL RELAY
+                  </h2>
+                  <p className="text-xs text-zinc-550 dark:text-zinc-500 font-sans tracking-wide leading-relaxed mb-6">
+                    Connect securely inside clean workspace frequencies. Choose a stream channel or select an online peer from the options below to start chatting.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2.5 mb-6 text-left">
+                    <div className={`p-3 rounded-2xl border ${theme === 'dark' ? 'bg-zinc-900/40 border-zinc-900/80' : 'bg-zinc-100/60 border-zinc-200/60'}`}>
+                      <span className="text-[9px] uppercase tracking-wider font-bold text-zinc-400 block mb-0.5">Frequency Presence</span>
+                      <span className="text-xs font-bold text-accent font-sans flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                        {onlineUsers.length} Online
+                      </span>
+                    </div>
+                    <div className={`p-2.5 rounded-2xl border ${theme === 'dark' ? 'bg-zinc-900/40 border-zinc-900/80' : 'bg-zinc-100/60 border-zinc-200/60'}`}>
+                      <span className="text-[9px] uppercase tracking-wider font-bold text-zinc-400 block mb-0.5">Device Stream</span>
+                      <span className={`text-xs font-bold font-sans uppercase tracking-wide flex items-center gap-1.5 ${connectionStatus === 'connected' ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
+                        {connectionStatus}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 mb-1 text-left">
+                    <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">Select Channel Stream</span>
+
+                    <button
+                      onClick={() => setSelectedRecipient("All")}
+                      className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all hover:bg-zinc-100 dark:hover:bg-zinc-900 active:scale-98 cursor-pointer ${
+                        theme === 'dark' ? 'bg-zinc-950 border-zinc-900/80' : 'bg-white border-zinc-200'
                       }`}
                     >
-                      <UserAvatar 
-                        name={msg.sender} 
-                        className="w-7 h-7 sm:w-8 sm:h-8 text-[10px] sm:text-xs font-bold" 
-                        theme={theme}
-                      />
-                      <div className="flex flex-col space-y-1 min-w-0">
-                        <span className={`text-[10px] text-zinc-500 font-sans tracking-wide ${msg.sender === userName ? 'text-right' : 'text-left'} truncate max-w-[150px] sm:max-w-none`}>
-                          {msg.sender === userName ? 'You' : msg.sender} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <div
-                          className={`px-3.5 py-2.5 sm:p-3.5 rounded-2xl ${
-                            msg.sender === userName
-                              ? 'bg-accent text-white rounded-tr-none shadow-sm'
-                              : theme === 'dark'
-                                ? 'bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-tl-none'
-                                : 'bg-white text-zinc-900 rounded-tl-none border border-zinc-200 shadow-sm'
-                          }`}
-                        >
-                          {msg.image && (
-                            <img 
-                              src={msg.image} 
-                              className="rounded-xl mb-1.5 max-w-full overflow-hidden object-cover border border-zinc-200/10 shadow-inner max-h-60" 
-                              alt="Shared media" 
-                              referrerPolicy="no-referrer" 
-                            />
-                          )}
-                          {msg.audio && (
-                            <div className="my-1 max-w-full overflow-hidden">
-                              <audio src={msg.audio} controls className="max-w-full w-40 xs:w-48 sm:w-64 h-8 scale-95 origin-left" />
-                            </div>
-                          )}
-                          {msg.text && (
-                            <p className="font-sans text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>
-                          )}
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-accent/15 flex items-center justify-center text-accent">
+                          👥
+                        </div>
+                        <div className="text-left">
+                          <span className="text-xs font-bold font-sans block">Public Room (All)</span>
+                          <span className="text-[9px] text-zinc-505 font-medium">Broadcast to all online users</span>
                         </div>
                       </div>
+                      <ChevronRight size={13} className="text-zinc-400" />
+                    </button>
+
+                    {onlineUsers.filter(u => u !== userName).length > 0 ? (
+                      <div className="max-h-32 overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin pt-1">
+                        {onlineUsers.filter(u => u !== userName).map((user) => (
+                          <button
+                            key={user}
+                            onClick={() => setSelectedRecipient(user)}
+                            className={`w-full flex items-center justify-between p-2 rounded-xl border transition-all hover:bg-zinc-100 dark:hover:bg-zinc-900 active:scale-98 cursor-pointer ${
+                              theme === 'dark' ? 'bg-zinc-950/65 border-zinc-900/40' : 'bg-white border-zinc-200/80'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <UserAvatar name={user} className="w-6 h-6 text-[8px]" theme={theme} />
+                              <span className="text-xs font-semibold">{user}</span>
+                            </div>
+                            <span className="text-[10px] text-accent font-bold uppercase tracking-wider flex items-center gap-1">
+                              Chat <ChevronRight size={11} />
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={`p-3 rounded-2xl border border-dashed text-center flex flex-col items-center justify-center ${
+                        theme === 'dark' ? 'bg-black/20 border-zinc-900/60' : 'bg-zinc-50/55 border-zinc-200'
+                      }`}>
+                        <span className="text-xs text-zinc-550 italic">No other peers online</span>
+                        <button 
+                          onClick={() => setShowInviteModal(true)}
+                          className="text-[10px] text-accent font-bold uppercase tracking-widest mt-1.5 hover:underline"
+                        >
+                          Send System Invite +
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ) : (
+                <div className="space-y-3">
+                  {displayedMessages.length === 0 ? (
+                    <div className="h-[40vh] flex flex-col items-center justify-center text-center p-6 text-zinc-550">
+                      <span className="text-2xl mb-2 opacity-50">✉️</span>
+                      <p className="text-xs sm:text-sm font-sans font-medium text-zinc-400 dark:text-zinc-500">No messages yet with {selectedRecipient === 'All' ? 'everyone' : selectedRecipient}.</p>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-600 mt-1 max-w-[240px] leading-relaxed">Start the conversation by sending a direct message.</p>
                     </div>
-                  </motion.div>
-                ))
+                  ) : (
+                    displayedMessages.map((msg) => {
+                      if (msg.sender === 'System') {
+                        return (
+                          <motion.div
+                            key={msg.id}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="flex justify-center my-3 w-full"
+                          >
+                            <span className={`px-3.5 py-1.5 text-[9px] sm:text-xxs font-bold uppercase tracking-widest rounded-full border shadow-sm ${
+                              theme === 'dark'
+                                ? 'bg-zinc-900/35 border-zinc-900 text-zinc-400'
+                                : 'bg-zinc-100 border-zinc-200 text-zinc-500'
+                            }`}>
+                              {msg.text}
+                            </span>
+                          </motion.div>
+                        );
+                      }
+
+                      return (
+                        <motion.div
+                          key={msg.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className={`flex ${msg.sender === userName ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`flex gap-1.5 sm:gap-2.5 max-w-[90%] sm:max-w-[70%] ${
+                              msg.sender === userName
+                                ? 'flex-row-reverse'
+                                : 'flex-row'
+                            }`}
+                          >
+                            <UserAvatar 
+                              name={msg.sender} 
+                              className="w-7 h-7 sm:w-8 sm:h-8 text-[10px] sm:text-xs font-bold" 
+                              theme={theme}
+                            />
+                            <div className="flex flex-col space-y-1 min-w-0">
+                              <span className={`text-[10px] text-zinc-500 font-sans tracking-wide ${msg.sender === userName ? 'text-right' : 'text-left'} truncate max-w-[150px] sm:max-w-none`}>
+                                {msg.sender === userName ? 'You' : msg.sender} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <div
+                                className={`px-3.5 py-2.5 sm:p-3.5 rounded-2xl ${
+                                  msg.sender === userName
+                                    ? 'bg-accent text-white rounded-tr-none shadow-sm'
+                                    : theme === 'dark'
+                                      ? 'bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-tl-none'
+                                      : 'bg-white text-zinc-900 rounded-tl-none border border-zinc-200 shadow-sm'
+                                }`}
+                              >
+                                {msg.image && (
+                                  <img 
+                                    src={msg.image} 
+                                    className="rounded-xl mb-1.5 max-w-full overflow-hidden object-cover border border-zinc-200/10 shadow-inner max-h-60" 
+                                    alt="Shared media" 
+                                    referrerPolicy="no-referrer" 
+                                  />
+                                )}
+                                {msg.audio && (
+                                  <div className="my-1 max-w-full overflow-hidden">
+                                    <audio src={msg.audio} controls className="max-w-full w-40 xs:w-48 sm:w-64 h-8 scale-95 origin-left" />
+                                  </div>
+                                )}
+                                {msg.text && (
+                                  <p className="font-sans text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
               )}
             </AnimatePresence>
-            <div ref={chatEndRef} />
           </div>
         </div>
       </div>
 
       {/* Footer / Input Controller */}
-      <footer className={`px-2.5 py-2 sm:p-6 ${theme === 'dark' ? 'bg-zinc-950/60 backdrop-blur-md border-t border-zinc-900' : 'bg-white/85 backdrop-blur-md border-t border-zinc-200'} safe-bottom z-10`}>
-        <div className="max-w-4xl mx-auto flex items-center gap-2 sm:gap-3">
-          {/* Outlined M3 container for text inputs and actions */}
-          <div className={`flex-1 flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-4 sm:py-2 rounded-2xl border ${
-            theme === 'dark' 
-              ? 'bg-zinc-900/40 border-zinc-800 focus-within:border-accent' 
-              : 'bg-zinc-100/40 border-zinc-200 focus-within:border-accent'
-          } transition-all duration-200 min-w-0`}>
-            
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept="image/*"
-              onChange={handleFileChange}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="p-1 sm:p-2 text-zinc-400 hover:text-accent active:scale-90 transition-all flex-shrink-0"
-              title="Share Image"
-            >
-              <Camera size={16} className="sm:w-[18px] sm:h-[18px]" />
-            </button>
-
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`p-1 sm:p-2 transition-all active:scale-90 flex-shrink-0 ${isRecording ? 'text-accent animate-pulse' : 'text-zinc-400 hover:text-accent'}`}
-              title="Voice Note"
-            >
-              {isRecording ? <MicOff size={16} className="sm:w-[18px] sm:h-[18px]" /> : <Mic size={16} className="sm:w-[18px] sm:h-[18px]" />}
-            </button>
-
-            {!isRecording && (
-              <div className={`h-4 w-[1px] ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-300'} mx-0.5`} />
-            )}
-
-            {isRecording ? (
-              <div className="flex-1 flex items-center gap-1.5 text-[11px] text-accent font-semibold tracking-wider uppercase animate-pulse py-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent"></span>
-                <span>Recording Voice Note...</span>
-              </div>
-            ) : (
+      {selectedRecipient && (
+        <footer className={`px-2.5 py-2 sm:p-6 ${theme === 'dark' ? 'bg-zinc-950/60 backdrop-blur-md border-t border-zinc-900' : 'bg-white/85 backdrop-blur-md border-t border-zinc-200'} safe-bottom z-10`}>
+          <div className="max-w-4xl mx-auto flex items-center gap-2 sm:gap-3">
+            {/* Outlined M3 container for text inputs and actions */}
+            <div className={`flex-1 flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-4 sm:py-2 rounded-2xl border ${
+              theme === 'dark' 
+                ? 'bg-zinc-900/40 border-zinc-800 focus-within:border-accent' 
+                : 'bg-zinc-100/40 border-zinc-200 focus-within:border-accent'
+            } transition-all duration-200 min-w-0`}>
+              
               <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Type a message..."
-                className="flex-1 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-base sm:text-sm py-1 font-sans placeholder-zinc-500 text-inherit min-w-0"
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleFileChange}
               />
-            )}
-          </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="p-1 sm:p-2 text-zinc-400 hover:text-accent active:scale-90 transition-all flex-shrink-0"
+                title="Share Image"
+              >
+                <Camera size={16} className="sm:w-[18px] sm:h-[18px]" />
+              </button>
 
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`p-1 sm:p-2 transition-all active:scale-90 flex-shrink-0 ${isRecording ? 'text-accent animate-pulse' : 'text-zinc-400 hover:text-accent'}`}
+                title="Voice Note"
+              >
+                {isRecording ? <MicOff size={16} className="sm:w-[18px] sm:h-[18px]" /> : <Mic size={16} className="sm:w-[18px] sm:h-[18px]" />}
+              </button>
+
+              {!isRecording && (
+                <div className={`h-4 w-[1px] ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-300'} mx-0.5`} />
+              )}
+
+              {isRecording ? (
+                <div className="flex-1 flex items-center gap-1.5 text-[11px] text-accent font-semibold tracking-wider uppercase animate-pulse py-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent"></span>
+                  <span>Recording Voice Note...</span>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                  placeholder="Type a message..."
+                  className="flex-1 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-base sm:text-sm py-1 font-sans placeholder-zinc-500 text-inherit min-w-0"
+                />
+              )}
+            </div>
+
+            <button
+              onClick={() => sendMessage()}
+              className="flex-shrink-0 p-2 sm:p-3 bg-accent text-white rounded-full font-medium hover:bg-accent-hover active:scale-95 transition-colors shadow-sm flex items-center justify-center min-w-[38px] min-h-[38px] sm:min-w-[44px] sm:min-h-[44px]"
+              title="Send Message"
+            >
+              <Send size={16} className="sm:w-[18px] sm:h-[18px]" />
+            </button>
+          </div>
+        </footer>
+      )}
+
+      {/* Modern Bottom Navigation Bar */}
+      <nav className={`border-t py-2 px-3 sm:px-6 relative z-30 transition-all w-full flex-shrink-0 ${
+        theme === 'dark' 
+          ? 'bg-zinc-950/95 border-zinc-900 text-zinc-350' 
+          : 'bg-white/95 border-zinc-200 text-zinc-650'
+      }`}>
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-1 sm:gap-2 w-full">
+          {/* 1. Peers Selector */}
           <button
-            onClick={() => sendMessage()}
-            className="flex-shrink-0 p-2 sm:p-3 bg-accent text-white rounded-full font-medium hover:bg-accent-hover active:scale-95 transition-colors shadow-sm flex items-center justify-center min-w-[38px] min-h-[38px] sm:min-w-[44px] sm:min-h-[44px]"
-            title="Send Message"
+            onClick={() => setIsAsideOpen(!isAsideOpen)}
+            className={`flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer ${
+              isAsideOpen ? 'text-accent font-bold' : ''
+            }`}
+            title="Toggle peers sidebar list"
           >
-            <Send size={16} className="sm:w-[18px] sm:h-[18px]" />
+            <Users size={16} />
+            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Peers</span>
+          </button>
+
+          {/* 2. Public Room Shortcut */}
+          <button
+            onClick={() => {
+              setSelectedRecipient("All");
+              setIsAsideOpen(false);
+            }}
+            className={`flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer ${
+              selectedRecipient === "All" ? 'text-accent font-bold' : ''
+            }`}
+            title="Switch frequency to Public"
+          >
+            <Radio size={16} />
+            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Public</span>
+          </button>
+
+          {/* 3. Send Invite Modal trigger */}
+          <button
+            onClick={() => {
+              setShowInviteModal(true);
+            }}
+            className="flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer"
+            title="Invite peers by mail invite"
+          >
+            <Share2 size={16} />
+            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Invite</span>
+          </button>
+
+          {/* 4. Switch Sound Prefs */}
+          <button
+            onClick={() => {
+              const newVal = !soundEnabled;
+              setSoundEnabled(newVal);
+              localStorage.setItem('pref_sound', String(newVal));
+              if (newVal) playNotificationSound();
+            }}
+            className={`flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer ${
+              soundEnabled ? 'text-accent font-bold' : ''
+            }`}
+            title="Toggle system sound chimes"
+          >
+            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Sound</span>
+          </button>
+
+          {/* 5. Aesthetic Light/Dark switch */}
+          <button
+            onClick={() => {
+              setTheme(theme === 'dark' ? 'light' : 'dark');
+            }}
+            className="flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer"
+            title="Switch dark/light theme style"
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Theme</span>
+          </button>
+
+          {/* 6. Push Notification quick config */}
+          <button
+            onClick={handleDesktopNotificationToggle}
+            className={`flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-accent active:scale-95 cursor-pointer ${
+              desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? 'text-accent' : ''
+            }`}
+            title="Toggle system desktop push logs alerts"
+          >
+            {desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? (
+              <Bell size={16} />
+            ) : (
+              <BellOff size={16} />
+            )}
+            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Alerts</span>
+          </button>
+
+          {/* 7. Drop node / Log Out */}
+          <button
+            onClick={handleLogout}
+            className="flex-1 flex flex-col items-center gap-1.5 p-1 rounded-xl transition-all hover:text-rose-500 active:scale-95 cursor-pointer text-zinc-500 hover:bg-rose-500/5"
+            title="Disconnect current channel session"
+          >
+            <LogOut size={16} />
+            <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Exit</span>
           </button>
         </div>
-      </footer>
+      </nav>
 
       {/* Dynamic Invitation Modal overlay when chatting */}
       {showInviteModal && renderInviteModal()}
