@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { Camera, Mic, MicOff, LogOut, Radio, Sun, Moon, Send, Users, X, Bell, BellOff, Volume2, VolumeX, Menu, MoreVertical, Share2, Mail, Link as LinkIcon, Check, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Camera, Mic, MicOff, LogOut, Radio, Sun, Moon, Send, Users, X, Bell, BellOff, Volume2, VolumeX, Menu, MoreVertical, Share2, Mail, Link as LinkIcon, Check, ArrowLeft, ChevronRight, Sliders, Settings } from 'lucide-react';
 import { Message } from './types';
 
 function hashCode(str: string): number {
@@ -990,252 +990,6 @@ export default function App() {
           ))}
         </AnimatePresence>
       </div>
-      {/* Top App Bar - Flat M3 Outlined Style */}
-      <header className={`flex items-center justify-between px-4 py-2.5 sm:px-6 sm:py-4 ${theme === 'dark' ? 'bg-zinc-950 border-b border-zinc-900' : 'bg-white border-b border-zinc-200'} z-20`}>
-        <div className="flex items-center gap-1.5 sm:gap-3">
-          {/* Quick toggle sidebar for mobile */}
-          <button 
-            className="md:hidden p-2 -ml-2 text-zinc-400 hover:text-accent transition-colors active:scale-95 relative" 
-            onClick={() => setIsAsideOpen(!isAsideOpen)}
-            title="Toggle user list"
-          >
-            <Users size={20} className={isAsideOpen ? "text-accent" : ""} />
-            {onlineUsers.length > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-zinc-950" />
-            )}
-          </button>
-          
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <UserAvatar 
-              name={userName} 
-              className="w-8 h-8 sm:w-9 sm:h-9 text-[10px] sm:text-xs font-bold" 
-              theme={theme}
-            />
-            <div className="min-w-0">
-              <h1 className="text-xs sm:text-sm font-bold tracking-tight font-display truncate max-w-[100px] xs:max-w-[130px] sm:max-w-none">{userName}</h1>
-              <p className="text-[9px] sm:text-[10px] text-zinc-500 font-sans tracking-wide uppercase truncate max-w-[120px] xs:max-w-[150px] sm:max-w-none">
-                <span className="hidden xs:inline">Active Recipient: </span>
-                <span className="xs:hidden">To: </span>
-                <span className="text-accent font-semibold">{selectedRecipient}</span>
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2 sm:gap-4 relative">
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-400 font-medium tracking-wide uppercase">
-             <Radio size={14} className="text-emerald-500 mb-0.5" />
-             <span>Live • {onlineUsers.length}</span>
-          </div>
-
-          {/* Connected Multi-Option Menu Dropdown */}
-          <div className="relative">
-            <button 
-              onClick={() => setIsNavMenuOpen(!isNavMenuOpen)}
-              className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer active:scale-95 ${
-                isNavMenuOpen 
-                  ? 'bg-accent border-accent text-white font-bold shadow-md shadow-accent/20' 
-                  : theme === 'dark' 
-                    ? 'bg-zinc-900 border-zinc-800 text-zinc-305 hover:bg-zinc-850 hover:text-white' 
-                    : 'bg-zinc-100 border-zinc-200 text-zinc-700 hover:bg-zinc-200/80 hover:text-black'
-              }`}
-              title="Menu Options & Peers"
-            >
-              <Menu size={16} />
-              <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline">Menu</span>
-            </button>
-
-            {/* Float Dropdown Popover */}
-            <AnimatePresence>
-              {isNavMenuOpen && (
-                <>
-                  {/* Backdrop for closing */}
-                  <div 
-                    className="fixed inset-0 z-40 cursor-default" 
-                    onClick={() => setIsNavMenuOpen(false)} 
-                  />
-                  
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className={`absolute right-0 mt-2.5 w-72 rounded-2xl shadow-2xl border p-4 z-50 text-left ${
-                      theme === 'dark' 
-                        ? 'bg-zinc-950 border-zinc-900 text-zinc-100' 
-                        : 'bg-white border-zinc-200 text-zinc-900'
-                    }`}
-                  >
-                    <div className="space-y-4">
-                      {/* Section 1: Email Referral CTA */}
-                      <div className="pb-3 border-b border-zinc-200 dark:border-zinc-900/80">
-                        <button
-                          onClick={() => {
-                            setIsNavMenuOpen(false);
-                            setShowInviteModal(true);
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-accent text-white text-xs font-bold uppercase tracking-wider hover:bg-accent/90 transition-all active:scale-95 cursor-pointer shadow-md"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Mail size={13} />
-                            <span>Invite Friends by Email</span>
-                          </div>
-                          <ChevronRight size={13} className="text-white/80" />
-                        </button>
-                      </div>
-
-                      {/* Section 2: Online Users inside Menu */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-widest px-0.5">
-                          <span>Frequency Peers</span>
-                          <span className="flex items-center gap-1 text-emerald-500 font-sans font-bold text-[9px]">
-                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                            {onlineUsers.length} active
-                          </span>
-                        </div>
-                        
-                        <div className="max-h-40 overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin">
-                          {/* All Users public channel */}
-                          <div 
-                            onClick={() => { 
-                              setSelectedRecipient("All"); 
-                              setIsNavMenuOpen(false); 
-                            }}
-                            className={`cursor-pointer text-xs font-semibold flex items-center gap-2.5 p-1.5 rounded-xl transition-all ${
-                              selectedRecipient === "All" 
-                                ? 'text-white bg-accent font-semibold' 
-                                : theme === 'dark' 
-                                  ? 'text-zinc-400 hover:bg-zinc-900 hover:text-white' 
-                                  : 'text-zinc-700 hover:bg-zinc-100 hover:text-black'
-                            }`}
-                          >
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                              selectedRecipient === "All" ? 'bg-white/20' : 'bg-accent/10 text-accent'
-                            }`}>
-                              👥
-                            </div>
-                            <span className="truncate">Public Room (All)</span>
-                          </div>
-
-                          {/* Individual Users list */}
-                          {onlineUsers.filter(u => u !== userName).length === 0 ? (
-                            <p className="text-[10px] text-zinc-500 italic pl-1.5 py-1">Frequency is clear. Open system invite to bring others!</p>
-                          ) : (
-                            onlineUsers.filter(u => u !== userName).map((user) => (
-                              <div 
-                                key={user} 
-                                onClick={() => { 
-                                  setSelectedRecipient(user); 
-                                  setIsNavMenuOpen(false); 
-                                }}
-                                className={`cursor-pointer text-xs font-semibold flex items-center gap-2.5 p-1.5 rounded-xl transition-all ${
-                                  selectedRecipient === user 
-                                    ? 'text-white bg-accent font-semibold' 
-                                    : theme === 'dark' 
-                                      ? 'text-zinc-400 hover:bg-zinc-900 hover:text-white' 
-                                      : 'text-zinc-700 hover:bg-zinc-100 hover:text-black'
-                                }`}
-                              >
-                                <UserAvatar 
-                                  name={user} 
-                                  className="w-6 h-6 text-[9px] font-bold" 
-                                  theme={theme}
-                                />
-                                <span className="truncate">{user}</span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Section 3: Options / Custom System Preferences */}
-                      <div className="pt-3 border-t border-zinc-200 dark:border-zinc-900/80 space-y-1.5 text-xs">
-                        <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-widest px-0.5 mb-1">
-                          Options & Settings
-                        </div>
-
-                        {/* Theme Toggle option */}
-                        <div 
-                          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all border font-semibold cursor-pointer ${
-                            theme === 'dark' 
-                              ? 'bg-zinc-900/40 hover:bg-zinc-900 text-zinc-300 border-zinc-900' 
-                              : 'bg-zinc-150 hover:bg-zinc-100/80 text-zinc-700 border-zinc-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5">
-                            {theme === 'dark' ? <Sun size={13} className="text-amber-500" /> : <Moon size={13} className="text-zinc-650" />}
-                            <span>Aesthetic Theme</span>
-                          </div>
-                          <span className="text-[9px] font-bold uppercase text-zinc-505 tracking-wider">
-                            {theme}
-                          </span>
-                        </div>
-
-                        {/* Sound Chimes switch */}
-                        <div
-                          onClick={() => {
-                            const newVal = !soundEnabled;
-                            setSoundEnabled(newVal);
-                            localStorage.setItem('pref_sound', String(newVal));
-                            if (newVal) playNotificationSound();
-                          }}
-                          className={`flex items-center justify-between w-full px-3 py-2 rounded-xl transition-all border font-semibold cursor-pointer ${
-                            theme === 'dark' 
-                              ? 'bg-zinc-900/40 hover:bg-zinc-900 text-zinc-300 border-zinc-900' 
-                              : 'bg-zinc-150 hover:bg-zinc-100/80 text-zinc-700 border-zinc-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5">
-                            {soundEnabled ? <Volume2 size={13} className="text-accent" /> : <VolumeX size={13} className="text-zinc-500" />}
-                            <span>Sound Chimes</span>
-                          </div>
-                          <span className={`text-[9px] font-bold uppercase tracking-wider ${soundEnabled ? 'text-accent' : 'text-zinc-500'}`}>
-                            {soundEnabled ? 'ON' : 'OFF'}
-                          </span>
-                        </div>
-
-                        {/* Push Alerts switch */}
-                        <div
-                          onClick={handleDesktopNotificationToggle}
-                          className={`flex items-center justify-between w-full px-3 py-2 rounded-xl transition-all border font-semibold cursor-pointer ${
-                            theme === 'dark' 
-                              ? 'bg-zinc-900/40 hover:bg-zinc-900 text-zinc-300 border-zinc-900' 
-                              : 'bg-zinc-150 hover:bg-zinc-100/80 text-zinc-700 border-zinc-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5">
-                            {desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? (
-                              <Bell size={13} className="text-accent" />
-                            ) : (
-                              <BellOff size={13} className="text-zinc-500" />
-                            )}
-                            <span>Push Alerts</span>
-                          </div>
-                          <span className={`text-[9px] font-bold uppercase tracking-wider ${
-                            desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? 'text-accent' : 'text-zinc-500'
-                          }`}>
-                            {desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? 'ACTIVE' : 'OFF'}
-                          </span>
-                        </div>
-
-                        {/* Logout Trigger */}
-                        <button 
-                          onClick={handleLogout}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors font-bold mt-2 cursor-pointer border border-transparent"
-                        >
-                          <LogOut size={13} />
-                          <span>Disconnect Node</span>
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </header>
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Backdrop overlay for mobile drawer */}
@@ -1483,6 +1237,45 @@ export default function App() {
                 </motion.div>
               ) : (
                 <div className="space-y-3">
+                  {/* Inline header inside chat container */}
+                  <div className={`p-4 rounded-3xl border flex items-center justify-between mb-4 shadow-sm transition-all ${
+                    theme === 'dark' 
+                      ? 'bg-zinc-950/40 border-zinc-900/60 text-zinc-305' 
+                      : 'bg-zinc-50/50 border-zinc-200 text-zinc-805'
+                  }`}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {selectedRecipient === 'All' ? (
+                        <>
+                          <div className="w-8 h-8 rounded-full bg-accent/10 text-accent flex items-center justify-center text-sm font-bold shadow-inner">
+                            🌐
+                          </div>
+                          <div className="min-w-0">
+                            <h2 className="text-xs sm:text-sm font-extrabold tracking-wide uppercase font-display">Public Room Stream</h2>
+                            <p className="text-[9px] text-zinc-500 font-sans tracking-tight truncate">Frequency active with {onlineUsers.length} peers</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <UserAvatar name={selectedRecipient} className="w-8 h-8 text-[9px] font-bold" theme={theme} />
+                          <div className="min-w-0">
+                            <h2 className="text-xs sm:text-sm font-extrabold tracking-wide font-display truncate">🔒 {selectedRecipient}</h2>
+                            <p className="text-[9px] text-zinc-500 font-sans tracking-tight">Direct Node-to-Node Connection</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    
+                    <button
+                      onClick={() => setSelectedRecipient("")}
+                      className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold uppercase tracking-wider transition-all scale-100 hover:scale-[1.02] active:scale-95 cursor-pointer border ${
+                        theme === 'dark'
+                          ? 'bg-zinc-900 hover:bg-zinc-850 text-zinc-400 border-zinc-850 hover:text-white'
+                          : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-650 border-zinc-200 hover:text-black'
+                      }`}
+                    >
+                      Quit Stream
+                    </button>
+                  </div>
                   {displayedMessages.length === 0 ? (
                     <div className="h-[40vh] flex flex-col items-center justify-center text-center p-6 text-zinc-550">
                       <span className="text-2xl mb-2 opacity-50">✉️</span>
@@ -1641,7 +1434,130 @@ export default function App() {
       )}
 
       {/* Modern Bottom Navigation Bar */}
-      <div className="px-3 pb-4 pt-1.5 w-full max-w-4xl mx-auto flex-shrink-0 z-30">
+      <div className="px-3 pb-4 pt-1.5 w-full max-w-4xl mx-auto flex-shrink-0 z-30 relative">
+        {/* Floating More Options Popover */}
+        <AnimatePresence>
+          {isNavMenuOpen && (
+            <>
+              {/* Overlay Backdrop to close the popover */}
+              <div 
+                className="fixed inset-0 z-40 cursor-default" 
+                onClick={() => setIsNavMenuOpen(false)} 
+              />
+              
+              <motion.div
+                initial={{ opacity: 0, y: 15, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 15, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className={`absolute right-4 bottom-20 w-72 rounded-2xl shadow-2xl border p-4 z-50 text-left ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-950/98 border-zinc-800 text-zinc-100 shadow-black/55 backdrop-blur-md' 
+                    : 'bg-white/98 border-zinc-200 text-zinc-900 shadow-zinc-200/55 backdrop-blur-md'
+                }`}
+              >
+                <div className="space-y-4">
+                  {/* Connected User Profile Badge */}
+                  <div className="flex items-center gap-2.5 pb-3 border-b border-zinc-250 dark:border-zinc-850">
+                    <UserAvatar 
+                      name={userName} 
+                      className="w-9 h-9 text-xs font-bold" 
+                      theme={theme}
+                    />
+                    <div className="min-w-0">
+                      <span className="text-[9px] text-zinc-500 font-bold tracking-widest uppercase block mb-0.5">Connected Node</span>
+                      <h4 className="text-xs font-bold tracking-tight truncate">{userName}</h4>
+                    </div>
+                  </div>
+
+                  {/* Settings toggles */}
+                  <div className="space-y-2 text-xs">
+                    <span className="text-[9px] text-zinc-400 dark:text-zinc-550 font-bold uppercase tracking-widest block mb-1">
+                      Stream Preferences
+                    </span>
+
+                    {/* Theme Toggle */}
+                    <button 
+                      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all border font-semibold text-xs cursor-pointer ${
+                        theme === 'dark' 
+                          ? 'bg-zinc-900/40 hover:bg-zinc-900 text-zinc-300 border-zinc-900' 
+                          : 'bg-zinc-100 hover:bg-zinc-200/50 text-zinc-750 border-zinc-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {theme === 'dark' ? <Sun size={14} className="text-amber-500" /> : <Moon size={14} className="text-zinc-650" />}
+                        <span>Midnight Theme</span>
+                      </div>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-accent">
+                        {theme === 'dark' ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+
+                    {/* Sound Chimes */}
+                    <button
+                      onClick={() => {
+                        const newVal = !soundEnabled;
+                        setSoundEnabled(newVal);
+                        localStorage.setItem('pref_sound', String(newVal));
+                        if (newVal) playNotificationSound();
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all border font-semibold text-xs cursor-pointer ${
+                        theme === 'dark' 
+                          ? 'bg-zinc-900/40 hover:bg-zinc-900 text-zinc-300 border-zinc-900' 
+                          : 'bg-zinc-100 hover:bg-zinc-200/50 text-zinc-750 border-zinc-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {soundEnabled ? <Volume2 size={14} className="text-emerald-500" /> : <VolumeX size={14} className="text-zinc-400" />}
+                        <span>Audio Chimes</span>
+                      </div>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider ${soundEnabled ? 'text-emerald-500' : 'text-zinc-450'}`}>
+                        {soundEnabled ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+
+                    {/* Push Notifications */}
+                    <button
+                      onClick={handleDesktopNotificationToggle}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all border font-semibold text-xs cursor-pointer ${
+                        theme === 'dark' 
+                          ? 'bg-zinc-900/40 hover:bg-zinc-900 text-zinc-305 border-zinc-900' 
+                          : 'bg-zinc-100 hover:bg-zinc-200/50 text-zinc-755 border-zinc-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? (
+                          <Bell size={14} className="text-amber-500" />
+                        ) : (
+                          <BellOff size={14} className="text-zinc-400" />
+                        )}
+                        <span>Push Alerts</span>
+                      </div>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                        desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? 'text-amber-505' : 'text-zinc-400'
+                      }`}>
+                        {desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Logout block */}
+                  <div className="pt-3 border-t border-zinc-200 dark:border-zinc-850">
+                    <button 
+                      onClick={handleLogout}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-rose-500 hover:bg-rose-550/10 transition-colors font-bold text-xs uppercase tracking-wider cursor-pointer border border-transparent"
+                    >
+                      <LogOut size={14} />
+                      <span>Disconnect Stream</span>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
         <nav className={`py-2 px-3 rounded-2xl border transition-all w-full flex items-center shadow-lg ${
           theme === 'dark' 
             ? 'bg-zinc-900/90 border-zinc-800/80 text-zinc-300 backdrop-blur-md shadow-black/35' 
@@ -1699,75 +1615,19 @@ export default function App() {
               <Share2 size={20} />
             </button>
 
-            {/* 4. Switch Sound Prefs */}
+            {/* 4. More Options Trigger */}
             <button
-              onClick={() => {
-                const newVal = !soundEnabled;
-                setSoundEnabled(newVal);
-                localStorage.setItem('pref_sound', String(newVal));
-                if (newVal) playNotificationSound();
-              }}
+              onClick={() => setIsNavMenuOpen(!isNavMenuOpen)}
               className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer ${
-                soundEnabled
-                  ? theme === 'dark'
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                isNavMenuOpen
+                  ? 'bg-accent text-white shadow-sm scale-105'
                   : theme === 'dark'
-                    ? 'text-zinc-500 hover:text-zinc-350 hover:bg-zinc-800/80'
-                    : 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100'
+                    ? 'text-zinc-450 hover:text-white hover:bg-zinc-800/80'
+                    : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
               }`}
-              title={soundEnabled ? "Mute sound chimes" : "Unmute sound chimes"}
+              title="Settings & More Options"
             >
-              {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
-            </button>
-
-            {/* 5. Aesthetic Light/Dark switch */}
-            <button
-              onClick={() => {
-                setTheme(theme === 'dark' ? 'light' : 'dark');
-              }}
-              className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer ${
-                theme === 'dark'
-                  ? 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
-              }`}
-              title={theme === 'dark' ? "Switch to daylight mode" : "Switch to midnight mode"}
-            >
-              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-
-            {/* 6. Push Notification quick config */}
-            <button
-              onClick={handleDesktopNotificationToggle}
-              className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer ${
-                desktopNotificationEnabled && notificationPermissionStatus === 'granted'
-                  ? theme === 'dark'
-                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                    : 'bg-amber-50 text-amber-600 border border-amber-100'
-                  : theme === 'dark'
-                    ? 'text-zinc-500 hover:text-zinc-350 hover:bg-zinc-800/80'
-                    : 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100'
-              }`}
-              title={desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? "Mute push alerts" : "Enable push alerts"}
-            >
-              {desktopNotificationEnabled && notificationPermissionStatus === 'granted' ? (
-                <Bell size={20} />
-              ) : (
-                <BellOff size={20} />
-              )}
-            </button>
-
-            {/* 7. Drop node / Log Out */}
-            <button
-              onClick={handleLogout}
-              className={`p-3 rounded-xl transition-all active:scale-95 cursor-pointer ${
-                theme === 'dark'
-                  ? 'text-rose-500 hover:text-rose-400 hover:bg-rose-500/10'
-                  : 'text-rose-600 hover:text-rose-700 hover:bg-rose-50/80'
-              }`}
-              title="Exit current session"
-            >
-              <LogOut size={20} />
+              <Sliders size={20} />
             </button>
           </div>
         </nav>
